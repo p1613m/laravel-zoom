@@ -44,31 +44,17 @@ class Entry extends ApiEntry
      * @param $maxQueries
      * @param $baseUrl
      */
-    public function __construct($apiKey = null, $apiSecret = null, $tokenLife = null, $maxQueries = null, $baseUrl = null)
+    public function __construct($accessToken = null, $refreshToken = null, $tokenLife = null, $maxQueries = null, $baseUrl = null)
     {
-        $this->apiKey = $apiKey ? $apiKey : config('zoom.api_key');
-        $this->apiSecret = $apiSecret ? $apiSecret : config('zoom.api_secret');
-        $this->tokenLife = $tokenLife ? $tokenLife : config('zoom.token_life');
-        $this->maxQueries = $maxQueries ? $maxQueries : (config('zoom.max_api_calls_per_request') ? config('zoom.max_api_calls_per_request') : $this->maxQueries);
-        $this->baseUrl = $baseUrl ? $baseUrl : config('zoom.base_url');
+        $this->apiKey = $accessToken ?? config('zoom.access_token');
+        $this->apiSecret = $refreshToken ??  config('zoom.refresh_token');
+        $this->tokenLife = $tokenLife ??  config('zoom.token_life');
+        $this->maxQueries = $maxQueries ?? (config('zoom.max_api_calls_per_request') ? config('zoom.max_api_calls_per_request') : $this->maxQueries);
+        $this->baseUrl = $baseUrl ?? config('zoom.base_url');
     }
 
     public function newRequest()
     {
-        if (config('zoom.authentication_method') == 'jwt') {
-            return $this->jwtRequest();
-        } elseif (config('zoom.authentication_method') == 'oauth2') {
-        }
-    }
-
-    public function jwtRequest()
-    {
-        $jwtToken = JWT::generateToken(['iss' => $this->apiKey, 'exp' => time() + $this->tokenLife], $this->apiSecret);
-
-        return Client::baseUrl($this->baseUrl)->withToken($jwtToken);
-    }
-
-    public function oauth2Request()
-    {
+        return Client::baseUrl($this->baseUrl)->withToken($this->apiKey);
     }
 }
