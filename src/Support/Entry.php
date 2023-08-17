@@ -1,10 +1,15 @@
 <?php
 
 namespace MacsiDigital\Zoom\Support;
+namespace MacsiDigital\Zoom\Support;
 
 use MacsiDigital\API\Support\Authentication\JWT;
+use MacsiDigital\API\Support\Authentication\OAuth;
+use MacsiDigital\API\Support\Authentication\OAuth1;
 use MacsiDigital\API\Support\Entry as ApiEntry;
+use MacsiDigital\OAuth2\Providers\OAuth2ServiceProvider;
 use MacsiDigital\Zoom\Facades\Client;
+
 
 class Entry extends ApiEntry
 {
@@ -14,11 +19,11 @@ class Entry extends ApiEntry
 
     protected $maxQueries = '5';
 
-    protected $apiKey = null;
+    protected $accountId = null;
 
-    protected $apiSecret = null;
+    protected $clientId = null;
 
-    protected $tokenLife = null;
+    protected $clientSecret = null;
 
     protected $baseUrl = null;
 
@@ -38,23 +43,50 @@ class Entry extends ApiEntry
 
     /**
      * Entry constructor.
-     * @param $apiKey
-     * @param $apiSecret
-     * @param $tokenLife
+     * @param $accountId
+     * @param $clientId
+     * @param $clientSecret
      * @param $maxQueries
      * @param $baseUrl
      */
-    public function __construct($accessToken = null, $refreshToken = null, $tokenLife = null, $maxQueries = null, $baseUrl = null)
+    public function __construct($accountId = null, $clientId = null, $clientSecret = null, $maxQueries = null, $baseUrl = null)
     {
-        $this->apiKey = $accessToken ?? config('zoom.access_token');
-        $this->apiSecret = $refreshToken ??  config('zoom.refresh_token');
-        $this->tokenLife = $tokenLife ??  config('zoom.token_life');
-        $this->maxQueries = $maxQueries ?? (config('zoom.max_api_calls_per_request') ? config('zoom.max_api_calls_per_request') : $this->maxQueries);
-        $this->baseUrl = $baseUrl ?? config('zoom.base_url');
+        $this->accountId = $accountId ? $accountId : config('zoom.account_id');
+        $this->clientId = $clientId ? $clientId : config('zoom.client_id');
+        $this->clientSecret = $clientSecret ? $clientSecret : config('zoom.client_secret');
+        $this->maxQueries = $maxQueries ? $maxQueries : (config('zoom.max_api_calls_per_request') ? config('zoom.max_api_calls_per_request') : $this->maxQueries);
+        $this->baseUrl = $baseUrl ? $baseUrl : config('zoom.base_url');
     }
 
     public function newRequest()
     {
-        return Client::baseUrl($this->baseUrl)->withToken($this->apiKey);
+        if (config('zoom.authentication_method') == 'Oauth') {
+            return $this->oauthRequest();
+        }
+    }
+
+
+    public function oauthRequest()
+    {
+        $oauthToken =  $this->OAuthGenerateToken();
+
+        return Client::baseUrl($this->baseUrl)->withToken($oauthToken);
+    }
+
+    private function OAuthGenerateToken(){
+
+        $response = \Illuminate\Support\Facades\Http::asForm()
+            ->withHeaders([
+                'Authorization' => ['Basic '.base64_encode("$this->clientId:$this->clientSecret")]
+            ])->post('https://zoom.us/oauth/token', [
+                'grant_type' => 'account_credentials',
+                'account_id' => $this->accountId,
+            ]);
+
+        if ($response->status() != 200) {
+            throw new \ErrorException( $response['error']);
+        }
+
+        return $response['access_token'];
     }
 }
